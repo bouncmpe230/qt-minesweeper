@@ -9,7 +9,6 @@ This repository contains a beginner-friendly Minesweeper project built with Qt W
 
 ## Course alignment
 
-This version intentionally follows the ideas in `PS10 - QT Programming.pdf` and `PS10 - QT_ Tetrix.pdf` from this directory:
 
 - `QMainWindow` provides the application shell
 - `QGridLayout`, `QVBoxLayout`, and standard widgets build the interface
