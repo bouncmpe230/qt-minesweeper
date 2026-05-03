@@ -85,7 +85,6 @@ m_boardLayout = new QGridLayout(m_boardWidget);
 scrollArea->setWidget(m_boardWidget);
 ```
 
-This matches the course emphasis on layouts over manual coordinates.
 
 ## Signals and slots
 

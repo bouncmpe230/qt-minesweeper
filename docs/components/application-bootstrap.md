@@ -63,15 +63,6 @@ target_link_libraries(minesweeper PRIVATE Qt6::Widgets)
 - `qt_add_executable(...)` defines the app target and its source files.
 - `target_link_libraries(...)` links the executable against Qt Widgets.
 
-## Relationship to the course PDFs
-
-The course PDFs introduce:
-
-- `QApplication` as the required application object
-- a main window as the entry point to the UI
-- project configuration through Qt tooling
-
-This project keeps those same ideas but uses CMake instead of `qmake`.
 
 ## When to edit this component
 
