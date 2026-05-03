@@ -39,6 +39,9 @@ jobs:
           arch: "wasm_singlethread"
           cache: true
 
+      - name: Restore Qt wrapper execute bits
+        run: find "$QT_ROOT_DIR/bin" -maxdepth 1 ! -type d -exec chmod +x {} +
+
       - name: Configure project
         run: qt-cmake -S . -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
 

@@ -49,10 +49,11 @@ The overall job sequence is:
 1. Check out the repository.
 2. Install build tools.
 3. Install Qt for WebAssembly.
-4. Configure the project with `qt-cmake`.
-5. Build the project.
-6. Collect the generated browser files.
-7. Upload and deploy them to GitHub Pages.
+4. Restore execute permission on the Qt wrapper scripts.
+5. Configure the project with `qt-cmake`.
+6. Build the project.
+7. Collect the generated browser files.
+8. Upload and deploy them to GitHub Pages.
 
 ## Important workflow snippets
 
@@ -63,14 +64,17 @@ Qt installation:
   uses: jurplel/install-qt-action@v4
   with:
     version: "6.9.2"
-    host: "linux"
-    target: "desktop"
+    host: "all_os"
+    target: "wasm"
     arch: "wasm_singlethread"
 ```
 
 Build configuration:
 
 ```yaml
+- name: Restore Qt wrapper execute bits
+  run: find "$QT_ROOT_DIR/bin" -maxdepth 1 ! -type d -exec chmod +x {} +
+
 - name: Configure project
   run: qt-cmake -S . -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
 ```
