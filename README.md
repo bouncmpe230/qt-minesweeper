@@ -65,4 +65,5 @@ After pushing the repository to GitHub, enable Pages with `GitHub Actions` as th
 
 - `src/` contains the Qt application
 - `docs/tutorial.md` walks through the project starting with Qt basics
+- `docs/components/` contains detailed notes for each major class and subsystem
 - `.github/workflows/deploy-wasm.yml` deploys the WebAssembly build

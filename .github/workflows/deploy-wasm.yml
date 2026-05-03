@@ -33,8 +33,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.9.2"
-          host: "linux"
-          target: "desktop"
+          # Qt 6.7+ publishes WASM packages under the shared all_os/wasm target.
+          host: "all_os"
+          target: "wasm"
           arch: "wasm_singlethread"
           cache: true
 

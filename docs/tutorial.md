@@ -1,183 +1,334 @@
 # Building Minesweeper in Qt: Starting with the Basics
 
-This tutorial is meant to accompany the code in this repository. It begins with the core ideas you need in Qt, then shows how they come together in a complete Minesweeper project.
+This tutorial accompanies the code in this repository. It starts with the Qt basics from the course PDFs, then ties those ideas to the actual implementation in this project with short code snippets.
 
-## 1. What Qt gives you
+## 0. How to use this tutorial
 
-Qt is a C++ framework for building desktop and cross-platform applications. In this project we use **Qt Widgets**, which is the traditional UI toolkit in Qt.
+Use this document in two passes:
 
-Three ideas matter most at the beginning:
+- Read the main sections here first to understand the big picture.
+- Open the detailed component notes in [components/README.md](components/README.md) when you want to study one class or subsystem in depth.
 
-- **Widgets** are visible UI elements such as buttons, labels, and windows.
-- **Layouts** arrange widgets without hard-coding pixel positions.
-- **Signals and slots** connect user actions to application logic.
+The PDFs in this directory, `PS10 - QT Programming.pdf` and `PS10 - QT_ Tetrix.pdf`, emphasize a few recurring ideas:
 
-If you understand those three ideas, you can already build a surprisingly large amount of UI in Qt.
+- `QApplication` starts the GUI event loop.
+- `QMainWindow` gives the application a standard shell.
+- layouts organize widgets cleanly.
+- signals and slots connect UI events to behavior.
+- custom widgets are useful when default controls are almost, but not quite, enough.
+- separating UI from logic makes the project easier to grow.
+
+This Minesweeper project follows that structure closely.
+
+## 1. The smallest Qt application
+
+Every Qt Widgets application needs one `QApplication` object. In this project, `src/main.cpp` is intentionally small:
+
+```cpp
+int main(int argc, char *argv[])
+{
+    QApplication app(argc, argv);
+    app.setApplicationName("Minesweeper");
+    app.setOrganizationName("CMPE230");
+
+    MainWindow window;
+    window.show();
+
+    return app.exec();
+}
+```
+
+There are three key actions here:
+
+- Create the Qt application object.
+- Construct and show the main window.
+- Start the event loop with `app.exec()`.
+
+If you are new to Qt, this is the first pattern to memorize.
+
+More detail: [components/application-bootstrap.md](components/application-bootstrap.md)
 
 ## 2. The project structure
 
-This project is split into small, clear parts:
+The code is split into focused pieces:
 
-- `src/main.cpp` creates the Qt application and shows the main window.
-- `src/mainwindow.cpp` builds the interface and reacts to user input.
-- `src/minesweepergame.cpp` contains the game rules and board state.
-- `src/cellbutton.cpp` gives each board cell custom mouse behavior.
-- `src/tutorialdialog.cpp` provides a beginner help dialog.
+- `src/main.cpp` boots the program.
+- `src/mainwindow.cpp` builds the interface and coordinates user interaction.
+- `src/minesweepergame.cpp` stores the rules and board state.
+- `src/cellbutton.cpp` customizes mouse handling for board cells.
+- `src/tutorialdialog.cpp` provides the beginner help window.
+- `.github/workflows/deploy-wasm.yml` builds and deploys the browser version.
 
-That separation is important. The UI decides **how to present** the game, while `MinesweeperGame` decides **how the game works**.
+That split mirrors the Tetrix PDF: one part owns the window and presentation, another part owns the game behavior.
 
-## 3. Creating a Qt Widgets app
+## 3. Building the project with Qt 6 and CMake
 
-The build is defined in `CMakeLists.txt`.
+The course slides introduce `qmake`, but this repository uses the modern Qt 6 CMake style:
 
-Key ideas:
+```cmake
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
-- `find_package(Qt6 REQUIRED COMPONENTS Widgets)` loads the Widgets module.
-- `qt_add_executable(...)` creates the application target.
-- `target_link_libraries(... Qt6::Widgets)` links the Qt Widgets library.
+qt_add_executable(minesweeper
+    src/main.cpp
+    src/mainwindow.cpp
+    src/minesweepergame.cpp
+    src/cellbutton.cpp
+    src/tutorialdialog.cpp
+)
 
-This is the standard modern Qt 6 CMake style.
-
-## 4. The main window
-
-`MainWindow` inherits from `QMainWindow`, which gives you:
-
-- a central area for your content
-- a menu bar
-- a status bar
-
-Inside the window, the project builds the interface using layouts instead of fixed coordinates:
-
-- `QVBoxLayout` stacks sections vertically
-- `QGridLayout` arranges controls and the board in rows and columns
-- `QScrollArea` keeps the expert board usable on smaller screens and in browsers
-
-This is one of the first good Qt habits to learn: let layouts do the positioning work.
-
-## 5. Signals and slots in practice
-
-Qt uses signals and slots to react to events.
-
-Examples from this project:
-
-- Clicking `New Game` starts a fresh board.
-- Clicking `Beginner Tutorial` opens the help dialog.
-- Clicking a `CellButton` either reveals a cell or toggles a flag.
-- A `QTimer` updates the game clock every second.
-
-Conceptually, it looks like this:
-
-```cpp
-connect(button, &QPushButton::clicked, this, &MainWindow::startNewGameFromSelection);
+target_link_libraries(minesweeper PRIVATE Qt6::Widgets)
 ```
 
-That line means: when the button emits `clicked`, call the `startNewGameFromSelection` function.
+This tells CMake:
 
-## 6. Why `CellButton` exists
+- the project depends on Qt Widgets
+- the executable is called `minesweeper`
+- these source files are part of the application
+- the final target must link against `Qt6::Widgets`
 
-Regular `QPushButton` already handles clicks, but Minesweeper needs custom cell behavior:
+More detail: [components/application-bootstrap.md](components/application-bootstrap.md)
 
-- left click should reveal
-- right click should flag
-- `Ctrl` + click should also flag for web-friendly play
+## 4. Why `MainWindow` exists
 
-So the project subclasses `QPushButton` and overrides `mousePressEvent`. That is a common Qt pattern when the default widget behavior is close to what you need, but not quite enough.
+The course material uses `QMainWindow` when the application needs a real window shell with menu bars and status information. That is exactly what happens here.
 
-## 7. Keeping game logic separate
+The class definition already tells you what the main window controls:
 
-`MinesweeperGame` is a plain C++ class with no UI code inside it. It stores:
+```cpp
+class MainWindow : public QMainWindow
+{
+    Q_OBJECT
 
-- board dimensions
-- mine positions
-- revealed cells
-- flagged cells
-- current game state
+public:
+    MainWindow();
 
-This separation makes the project easier to:
+private:
+    MinesweeperGame m_game;
+    QTimer m_timer;
+    int m_elapsedSeconds = 0;
+    QVector<DifficultyPreset> m_presets;
+```
 
-- test mentally
-- refactor safely
-- reuse with a different interface later
+That short section reveals a lot:
 
-If the UI and game rules are tightly mixed together, small changes become harder than they need to be.
+- `MainWindow` owns the game model.
+- It also owns a `QTimer`.
+- It tracks elapsed time.
+- It stores difficulty presets for beginner, intermediate, and expert boards.
 
-## 8. First-click-safe generation
+More detail: [components/main-window.md](components/main-window.md)
 
-One nice beginner-friendly feature in this project is first-click-safe generation.
+## 5. Layouts instead of manual positioning
 
-The board is not fully finalized when the game starts. Instead:
+One of the healthiest Qt habits is to let layouts manage placement. In `buildUi()`, the project uses a vertical layout for the page, a grid layout for controls, and another grid layout for the board:
 
-1. The player clicks a cell.
-2. The game places mines afterward.
-3. The clicked cell, and usually its surrounding area, is kept safe.
+```cpp
+auto *rootLayout = new QVBoxLayout(centralWidget);
+auto *controlsLayout = new QGridLayout();
 
-This avoids frustrating instant losses and gives the player a usable opening position.
+m_boardWidget = new QWidget(scrollArea);
+m_boardLayout = new QGridLayout(m_boardWidget);
+scrollArea->setWidget(m_boardWidget);
+```
 
-## 9. Flood fill for empty regions
+This gives the app a few benefits immediately:
 
-When the player reveals a cell with zero neighboring mines, the game should open the nearby empty area automatically.
+- the window resizes cleanly
+- controls stay aligned
+- the large expert board can sit inside a `QScrollArea`
+- the same UI structure works better in the WebAssembly build
 
-This project does that with a queue-based search:
+## 6. Signals and slots in real code
 
-- reveal the clicked zero cell
-- visit its neighbors
-- reveal neighboring zero cells too
-- continue until the empty region is exhausted
+Signals and slots become much easier to understand when you see them in actual application code. Here is one of the simplest connections in the project:
 
-That is a great example of how a simple algorithm can noticeably improve the user experience.
+```cpp
+connect(m_newGameButton, &QPushButton::clicked, this, &MainWindow::startNewGameFromSelection);
+```
 
-## 10. Updating the UI from the model
+This means:
 
-After each move, `MainWindow::refreshBoard()` redraws the button states based on the current game model.
+- `m_newGameButton` emits `clicked`
+- `MainWindow::startNewGameFromSelection()` runs in response
 
-Each button checks whether its cell is:
+The timer uses the same idea:
 
-- hidden
-- flagged
-- revealed as a number
-- revealed as a mine
-- incorrectly flagged after a loss
+```cpp
+connect(&m_timer, &QTimer::timeout, this, [this]() {
+    ++m_elapsedSeconds;
+    updateHeader();
+});
+```
 
-This approach is straightforward and beginner-friendly because the rendering logic is centralized in one place.
+This is a good example of the Qt slides' main lesson: user events and time-based events can be handled with the same signals-and-slots model.
 
-## 11. Adding tutorial support
+## 7. Why `CellButton` is a custom widget
 
-The project includes `TutorialDialog` for players and this written guide for developers.
+The course PDFs spend time on custom widgets, and Minesweeper needs one. A normal `QPushButton` knows how to be clicked, but it does not know the rules of a Minesweeper cell.
 
-That is intentional: small learning aids make a student project feel much more complete. They also make the WebAssembly deployment easier to understand for someone who opens the page without context.
+`CellButton` subclasses `QPushButton` and translates mouse input into game-specific signals:
 
-## 12. Building for WebAssembly
+```cpp
+if (event->button() == Qt::RightButton) {
+    emit flagRequested(m_row, m_column);
+    event->accept();
+    return;
+}
 
-Qt can compile C++ applications to WebAssembly so they run in the browser.
+if (event->button() == Qt::LeftButton) {
+    emit revealRequested(m_row, m_column);
+    event->accept();
+    return;
+}
+```
 
-The workflow in `.github/workflows/deploy-wasm.yml` uses:
+This is a clean design because the button does not try to update game state itself. It only reports intent:
 
-- `jurplel/install-qt-action` to install Qt for WebAssembly
-- `qt-cmake` to configure the build with the right toolchain
-- GitHub Pages actions to publish the generated site
+- reveal this cell
+- flag this cell
 
-When the workflow finishes, GitHub Pages serves the generated `.html`, `.js`, and `.wasm` files as a playable web version of the app.
+More detail: [components/cell-button.md](components/cell-button.md)
 
-That also fits the opening idea from the Qt slides: one codebase, multiple platforms.
+## 8. Keeping the game logic separate
 
-## 13. Good next steps
+`MinesweeperGame` is the logic model. It does not know about Qt layouts, buttons, stylesheets, or dialogs. It only knows how the board works.
 
-Once you are comfortable with the basics, good extensions include:
+The core reveal flow looks like this:
 
-- a custom board size dialog
-- a restart button with preserved difficulty
-- keyboard navigation
-- high score persistence
-- chord-click behavior for number cells
-- sound or animation polish
+```cpp
+if (!m_minesPlaced) {
+    placeMines(row, column);
+    computeAdjacencies();
+    m_minesPlaced = true;
+    m_state = GameState::Running;
+}
 
-## 14. What to remember
+target.revealed = true;
+if (target.hasMine) {
+    m_state = GameState::Lost;
+    revealAllMines();
+    return true;
+}
+```
 
-If you only keep a few things from this tutorial, keep these:
+That structure gives you two important behaviors:
+
+- first-click-safe mine placement
+- consistent reveal rules that the UI can trust
+
+More detail: [components/game-logic.md](components/game-logic.md)
+
+## 9. First-click-safe generation
+
+Many beginner Minesweeper implementations place mines immediately when the board is created. This project waits until the first reveal. The relevant method is `placeMines()`:
+
+```cpp
+for (int row = safeRow - 1; row <= safeRow + 1; ++row) {
+    for (int column = safeColumn - 1; column <= safeColumn + 1; ++column) {
+        if (isInside(row, column)) {
+            forbiddenCells.insert(indexFor(row, column));
+        }
+    }
+}
+```
+
+This marks the clicked cell and its neighborhood as temporarily forbidden during mine placement. That small design choice makes the first move much friendlier for beginners.
+
+## 10. Flood fill for empty areas
+
+When the user clicks a zero-valued cell, the game should open a larger region automatically. The project does this with a queue-based search:
+
+```cpp
+QQueue<int> frontier;
+frontier.enqueue(startIndex);
+
+while (!frontier.isEmpty()) {
+    const int currentIndex = frontier.dequeue();
+    // inspect neighbors and reveal zero regions
+}
+```
+
+This is a great teaching example because it connects a UI feature to a concrete algorithm. The player experiences it as convenience, but the code underneath is a structured traversal.
+
+## 11. How the UI reacts to the model
+
+After each move, `MainWindow::refreshBoard()` redraws every button based on the current `MinesweeperGame::Cell` state:
+
+```cpp
+if (cell.revealed && cell.hasMine) {
+    text = "*";
+} else if (cell.revealed) {
+    text = cell.adjacentMines == 0 ? "" : QString::number(cell.adjacentMines);
+} else if (cell.flagged) {
+    text = "F";
+}
+```
+
+This is a simple and reliable pattern:
+
+- the model stores the truth
+- the window asks the model for state
+- the window redraws the view
+
+That separation is one of the biggest reasons the code stays understandable.
+
+## 12. Tutorial support inside the app
+
+The project also contains a help dialog for beginner players. It is implemented with familiar Qt widgets:
+
+```cpp
+auto *browser = new QTextBrowser(this);
+browser->setReadOnly(true);
+browser->setMarkdown(R"(
+## 1. Start with a single click
+...
+)");
+```
+
+This is useful for two reasons:
+
+- it helps first-time users play the game
+- it shows how documentation can live inside the application, not only in external files
+
+More detail: [components/tutorial-dialog.md](components/tutorial-dialog.md)
+
+## 13. WebAssembly deployment
+
+The GitHub workflow builds the project with `qt-cmake` and publishes the generated browser files:
+
+```yaml
+- name: Configure project
+  run: qt-cmake -S . -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+- name: Build project
+  run: cmake --build build-wasm --parallel
+```
+
+Then it copies the generated `.html`, `.js`, and `.wasm` files into a deployable folder for GitHub Pages.
+
+This fits one of Qt's most useful promises: one codebase can target both desktop and browser builds with relatively small changes.
+
+More detail: [components/build-and-deploy.md](components/build-and-deploy.md)
+
+## 14. Recommended reading order after this
+
+If you want to study the repository in depth, this order works well:
+
+1. [components/application-bootstrap.md](components/application-bootstrap.md)
+2. [components/main-window.md](components/main-window.md)
+3. [components/cell-button.md](components/cell-button.md)
+4. [components/game-logic.md](components/game-logic.md)
+5. [components/tutorial-dialog.md](components/tutorial-dialog.md)
+6. [components/build-and-deploy.md](components/build-and-deploy.md)
+
+## 15. What to remember
+
+If you only keep a few things from this project, keep these:
 
 - Use layouts instead of fixed coordinates.
-- Keep game rules separate from interface code.
-- Use signals and slots to connect user actions to behavior.
-- Start simple, then add polish once the structure is clean.
+- Keep game logic separate from interface code.
+- Use signals and slots everywhere user actions or timed actions matter.
+- Introduce custom widgets only when standard widgets are close, but not quite enough.
+- Start with a clean structure, then add polish.
 
-That foundation is enough to build a solid Qt project.
+That foundation is enough to build a strong Qt project.

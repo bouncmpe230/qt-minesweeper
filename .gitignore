@@ -2,4 +2,5 @@ build/
 build-*/
 dist/
 .DS_Store
-
+.qtcreator/
+*.user
