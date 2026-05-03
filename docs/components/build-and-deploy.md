@@ -47,13 +47,14 @@ The workflow file is `.github/workflows/deploy-wasm.yml`.
 The overall job sequence is:
 
 1. Check out the repository.
-2. Install build tools.
+2. Configure GitHub Pages.
 3. Install Qt for WebAssembly.
-4. Restore execute permission on the Qt wrapper scripts.
-5. Configure the project with `qt-cmake`.
-6. Build the project.
-7. Collect the generated browser files.
-8. Upload and deploy them to GitHub Pages.
+4. Fix execute permission on the Qt wrapper scripts.
+5. Install the matching Emscripten SDK version.
+6. Source `emsdk_env.sh` and configure the project with `qt-cmake`.
+7. Source `emsdk_env.sh` again and build the project.
+8. Collect the generated browser files.
+9. Upload and deploy them to GitHub Pages.
 
 ## Important workflow snippets
 
@@ -69,25 +70,37 @@ Qt installation:
     arch: "wasm_singlethread"
 ```
 
+For Qt `6.9.x`, the workflow pairs the build with Emscripten `3.1.70`.
+
 Build configuration:
 
 ```yaml
-- name: Restore Qt wrapper execute bits
-  run: find "$QT_ROOT_DIR/bin" -maxdepth 1 ! -type d -exec chmod +x {} +
+- name: Fix Qt WebAssembly tool permissions
+  run: chmod +x "$QT_ROOT_DIR/bin/"*
 
-- name: Configure project
-  run: qt-cmake -S . -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+- name: Install Emscripten SDK
+  run: |
+    git clone https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+    cd "$RUNNER_TEMP/emsdk"
+    ./emsdk install 3.1.70
+    ./emsdk activate 3.1.70
+    echo "EMSDK=$RUNNER_TEMP/emsdk" >> "$GITHUB_ENV"
+
+- name: Configure CMake
+  run: |
+    source "$EMSDK/emsdk_env.sh"
+    "$QT_ROOT_DIR/bin/qt-cmake" -G Ninja -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release
 ```
 
 Deploy artifact preparation:
 
 ```yaml
-- name: Collect web files
+- name: Stage Pages artifact
   run: |
-    mkdir -p dist
-    cp build-wasm/minesweeper.html dist/index.html
-    cp build-wasm/minesweeper.js dist/
-    cp build-wasm/minesweeper.wasm dist/
+    mkdir -p site
+    cp build-wasm/*.html site/
+    cp build-wasm/*.js site/
+    cp build-wasm/*.wasm site/
 ```
 
 ## Why this component matters

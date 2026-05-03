@@ -20,14 +20,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - name: Set up Pages
+      - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-
-      - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
 
       - name: Install Qt for WebAssembly
         uses: jurplel/install-qt-action@v4
@@ -39,30 +36,44 @@ jobs:
           arch: "wasm_singlethread"
           cache: true
 
-      - name: Restore Qt wrapper execute bits
-        run: find "$QT_ROOT_DIR/bin" -maxdepth 1 ! -type d -exec chmod +x {} +
+      - name: Fix Qt WebAssembly tool permissions
+        run: chmod +x "$QT_ROOT_DIR/bin/"*
 
-      - name: Configure project
-        run: qt-cmake -S . -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build project
-        run: cmake --build build-wasm --parallel
-
-      - name: Collect web files
+      - name: Install Emscripten SDK
         run: |
-          mkdir -p dist
-          cp build-wasm/minesweeper.html dist/index.html
-          cp build-wasm/minesweeper.js dist/
-          cp build-wasm/minesweeper.wasm dist/
-          if [ -f build-wasm/minesweeper.worker.js ]; then cp build-wasm/minesweeper.worker.js dist/; fi
-          if [ -f build-wasm/minesweeper.data ]; then cp build-wasm/minesweeper.data dist/; fi
-          if [ -f build-wasm/qtloader.js ]; then cp build-wasm/qtloader.js dist/; fi
-          if [ -f build-wasm/qtlogo.svg ]; then cp build-wasm/qtlogo.svg dist/; fi
+          git clone https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          cd "$RUNNER_TEMP/emsdk"
+          ./emsdk install 3.1.70
+          ./emsdk activate 3.1.70
+          echo "EMSDK=$RUNNER_TEMP/emsdk" >> "$GITHUB_ENV"
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Configure CMake
+        run: |
+          source "$EMSDK/emsdk_env.sh"
+          "$QT_ROOT_DIR/bin/qt-cmake" -G Ninja -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          source "$EMSDK/emsdk_env.sh"
+          cmake --build build-wasm --parallel
+
+      - name: Stage Pages artifact
+        run: |
+          mkdir -p site
+          cp build-wasm/*.html site/
+          cp build-wasm/*.js site/
+          cp build-wasm/*.wasm site/
+          if ls build-wasm/*.data >/dev/null 2>&1; then cp build-wasm/*.data site/; fi
+          if ls build-wasm/*.worker.js >/dev/null 2>&1; then cp build-wasm/*.worker.js site/; fi
+          if ls build-wasm/qtloader.js >/dev/null 2>&1; then cp build-wasm/qtloader.js site/; fi
+          if ls build-wasm/qtlogo.svg >/dev/null 2>&1; then cp build-wasm/qtlogo.svg site/; fi
+          mv site/minesweeper.html site/index.html
+          touch site/.nojekyll
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: dist
+          path: site
 
   deploy:
     runs-on: ubuntu-latest
